@@ -3,7 +3,9 @@ import { NavLink } from "react-router-dom";
 const CITIZEN_ITEMS = [
   { to: "/raise-complaint", icon: "+", label: "Raise Complaint" },
   { to: "/my-complaints", icon: "T", label: "My Complaints" },
-  { to: "/dashboard", icon: "D", label: "Dashboard" },
+  { to: "/citizen-dashboard", icon: "👤", label: "My Dashboard" },
+  { to: "/dashboard", icon: "D", label: "City Dashboard" },
+  { to: "/geo-map", icon: "📍", label: "Map View" },
   { to: "/heatmap", icon: "M", label: "Heatmap" },
   { to: "/trends", icon: "T", label: "Trends" },
   { to: "/alerts", icon: "A", label: "Alerts" },
@@ -13,7 +15,8 @@ const CITIZEN_ITEMS = [
 
 const OFFICIAL_ITEMS = [
   { to: "/official-actions", icon: "!", label: "Official Action" },
-  { to: "/dashboard", icon: "D", label: "Dashboard" },
+  { to: "/dashboard", icon: "D", label: "City Dashboard" },
+  { to: "/geo-map", icon: "📍", label: "Map View" },
   { to: "/heatmap", icon: "M", label: "Heatmap" },
   { to: "/trends", icon: "T", label: "Trends" },
   { to: "/alerts", icon: "A", label: "Alerts" },

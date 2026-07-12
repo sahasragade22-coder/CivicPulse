@@ -2,6 +2,85 @@ from collections import defaultdict
 from datetime import datetime, timedelta
  
 SPIKE_THRESHOLD = 5
+
+# Civic impact scores by category (lower = more impactful)
+CATEGORY_IMPACT = {
+    "Water": 95,
+    "Electricity": 90,
+    "Road": 85,
+    "Garbage": 70,
+    "Building": 60,
+    "Noise": 40,
+    "Park": 30,
+    "Other": 50
+}
+
+def calculate_severity(complaint: dict) -> str:
+    """
+    Calculate severity level (Critical, High, Medium, Low) based on:
+    - Sentiment (negative = higher severity)
+    - Category civic impact (water/electricity = higher severity)
+    - Word indicators (urgent, critical, dangerous, etc.)
+    """
+    sentiment = complaint.get("sentiment", 0.0)
+    category = complaint.get("category", "Other")
+    text = (complaint.get("text", "") + complaint.get("title", "")).lower()
+    priority = complaint.get("priority", "Normal").lower()
+    
+    # Base score (0-100, higher = more severe)
+    base_score = 50
+    
+    # Sentiment impact (0-35 points)
+    if sentiment < -0.5:
+        base_score += 35
+    elif sentiment < -0.3:
+        base_score += 25
+    elif sentiment < 0:
+        base_score += 15
+    
+    # Category civic impact (0-30 points)
+    category_score = CATEGORY_IMPACT.get(category, 50)
+    base_score += (100 - category_score) * 0.3
+    
+    # Priority flag impact (0-20 points)
+    if priority == "critical":
+        base_score += 20
+    elif priority == "urgent":
+        base_score += 10
+    
+    # Critical keywords (0-15 points)
+    critical_keywords = ["emergency", "urgent", "critical", "dangerous", "hazard", 
+                        "severe", "life-threatening", "immediate", "collapsed", "flooded"]
+    if any(kw in text for kw in critical_keywords):
+        base_score += 15
+    
+    # High keywords
+    high_keywords = ["broken", "damaged", "blocked", "leak", "overflow", "accident", 
+                     "injury", "stuck", "broken"]
+    if any(kw in text for kw in high_keywords):
+        base_score += 8
+    
+    # Determine severity level
+    if base_score >= 80:
+        return "Critical"
+    elif base_score >= 60:
+        return "High"
+    elif base_score >= 40:
+        return "Medium"
+    else:
+        return "Low"
+
+def calculate_complaint_severity(sentiment: float, category: str, title: str, text: str, 
+                                  priority: str = "Normal") -> str:
+    """Convenience function that calculates severity from individual parameters"""
+    complaint = {
+        "sentiment": sentiment,
+        "category": category,
+        "title": title,
+        "text": text,
+        "priority": priority
+    }
+    return calculate_severity(complaint)
  
 def detect_spikes(complaints: list) -> list:
     alerts = []

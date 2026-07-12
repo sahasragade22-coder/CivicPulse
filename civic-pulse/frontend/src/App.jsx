@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { useSocket } from "./hooks/useSocket";
 import Sidebar from "./components/Sidebar";
+import NotificationPanel from "./components/NotificationPanel";
 import Dashboard from "./pages/Dashboard";
+import GeoMap from "./pages/GeoMap";
 import Heatmap from "./pages/Heatmap";
 import Trends from "./pages/Trends";
 import Alerts from "./pages/Alerts";
 import CivicScore from "./pages/CivicScore";
 import Classify from "./pages/Classify";
+import CitizenDashboard from "./pages/CitizenDashboard";
 import Login from "./pages/Login";
 import RaiseComplaint from "./pages/RaiseComplaint";
 import OfficialActions from "./pages/OfficialActions";
@@ -18,6 +22,8 @@ export default function App() {
     const saved = localStorage.getItem("civic_user");
     return saved ? JSON.parse(saved) : null;
   });
+
+  const { socket, isConnected } = useSocket(user?.id, user?.role);
 
   useEffect(() => {
     if (user) localStorage.setItem("civic_user", JSON.stringify(user));
@@ -38,6 +44,7 @@ export default function App() {
       ) : (
         <div className="app-layout">
           <Sidebar user={user} onLogout={logout} />
+          <NotificationPanel socket={socket} />
           <main className="main-content">
             <Routes>
               <Route path="/" element={<Navigate to={homePath} replace />} />
@@ -45,8 +52,10 @@ export default function App() {
               <Route path="/official-login" element={<Navigate to={homePath} replace />} />
               <Route path="/raise-complaint" element={user.role === "official" ? <Navigate to="/official-actions" replace /> : <RaiseComplaint user={user} />} />
               <Route path="/my-complaints" element={user.role === "official" ? <Navigate to="/official-actions" replace /> : <MyComplaints user={user} />} />
-              <Route path="/official-actions" element={user.role === "official" ? <OfficialActions /> : <Navigate to="/raise-complaint" replace />} />
+              <Route path="/citizen-dashboard" element={user.role === "official" ? <Navigate to="/official-actions" replace /> : <CitizenDashboard user={user} />} />
+              <Route path="/official-actions" element={user.role === "official" ? <OfficialActions socket={socket} /> : <Navigate to="/raise-complaint" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/geo-map" element={<GeoMap />} />
               <Route path="/heatmap" element={<Heatmap />} />
               <Route path="/trends" element={<Trends />} />
               <Route path="/alerts" element={<Alerts />} />

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../api/api";
+import DuplicateWarning from "../components/DuplicateWarning";
 
 const CATEGORIES = ["Road", "Water", "Electricity", "Garbage", "Park", "Building", "Noise", "Other"];
 const WARDS = [
@@ -19,11 +20,62 @@ export default function RaiseComplaint({ user }) {
     photo_url: "",
     priority: "Normal",
     date: today,
+    latitude: null,
+    longitude: null,
   });
   const [saved, setSaved] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [locationError, setLocationError] = useState(null);
+  const [duplicates, setDuplicates] = useState([]);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [userAcknowledgedDuplicates, setUserAcknowledgedDuplicates] = useState(false);
+  const duplicateCheckTimeout = useRef(null);
 
   const update = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  // Debounced duplicate check
+  useEffect(() => {
+    if (duplicateCheckTimeout.current) clearTimeout(duplicateCheckTimeout.current);
+    
+    if (form.title.length > 5 && form.text.length > 10) {
+      setCheckingDuplicates(true);
+      duplicateCheckTimeout.current = setTimeout(async () => {
+        try {
+          const result = await api.checkDuplicates(
+            form.title,
+            form.text,
+            form.category,
+            form.latitude,
+            form.longitude
+          );
+          setDuplicates(result.similar_complaints || []);
+        } catch (err) {
+          console.error("Error checking duplicates:", err);
+        } finally {
+          setCheckingDuplicates(false);
+        }
+      }, 1000);
+    }
+  }, [form.title, form.text, form.category, form.latitude, form.longitude]);
+
+  const getLocation = () => {
+    setLocationError(null);
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setForm((prev) => ({
+            ...prev,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }));
+        },
+        (error) => setLocationError("Unable to get location. Please enter manually."),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    } else {
+      setLocationError("Geolocation not supported. Please enter coordinates manually.");
+    }
+  };
 
   const submit = async (event) => {
     event.preventDefault();
@@ -36,8 +88,14 @@ export default function RaiseComplaint({ user }) {
         citizen_email: user?.email,
         status: "Open",
       });
+      // Update location if provided
+      if (form.latitude && form.longitude) {
+        await api.updateComplaintLocation(complaint.id, form.latitude, form.longitude);
+      }
       setSaved(complaint);
-      setForm((prev) => ({ ...prev, title: "", text: "", address: "", photo_url: "" }));
+      setDuplicates([]);
+      setUserAcknowledgedDuplicates(false);
+      setForm((prev) => ({ ...prev, title: "", text: "", address: "", photo_url: "", latitude: null, longitude: null }));
     } catch (err) {
       console.error(err);
     } finally {
@@ -53,6 +111,13 @@ export default function RaiseComplaint({ user }) {
       </div>
       <div className="complaint-layout">
         <form className="issue-form" onSubmit={submit}>
+          {/* Show duplicate warning if found */}
+          <DuplicateWarning 
+            duplicates={duplicates}
+            onIgnore={() => setUserAcknowledgedDuplicates(true)}
+            onAcknowledge={() => setUserAcknowledgedDuplicates(true)}
+          />
+          
           <label>
             Issue title
             <input value={form.title} onChange={(e) => update("title", e.target.value)} placeholder="Open drain near school" required />
@@ -75,6 +140,53 @@ export default function RaiseComplaint({ user }) {
             Exact location
             <input value={form.address} onChange={(e) => update("address", e.target.value)} placeholder="Street, landmark or colony name" required />
           </label>
+          
+          <div style={{ backgroundColor: '#f5f5f5', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '10px', fontSize: '14px', fontWeight: '600' }}>📍 Location Coordinates (Optional - to show on map)</h3>
+            <button 
+              type="button" 
+              onClick={getLocation} 
+              style={{
+                width: '100%',
+                padding: '10px',
+                backgroundColor: '#2196F3',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                marginBottom: '10px',
+                fontSize: '14px'
+              }}
+            >
+              🗺️ Use My Current Location
+            </button>
+            {locationError && <p style={{ color: '#d32f2f', fontSize: '12px', margin: '5px 0' }}>{locationError}</p>}
+            {form.latitude && form.longitude && (
+              <p style={{ color: '#4caf50', fontSize: '12px', margin: '5px 0' }}>✓ Location set: {form.latitude.toFixed(4)}, {form.longitude.toFixed(4)}</p>
+            )}
+            <div className="form-row">
+              <label>
+                Latitude
+                <input 
+                  type="number" 
+                  step="0.0001"
+                  value={form.latitude || ""} 
+                  onChange={(e) => update("latitude", e.target.value ? parseFloat(e.target.value) : null)} 
+                  placeholder="e.g. 17.3850" 
+                />
+              </label>
+              <label>
+                Longitude
+                <input 
+                  type="number" 
+                  step="0.0001"
+                  value={form.longitude || ""} 
+                  onChange={(e) => update("longitude", e.target.value ? parseFloat(e.target.value) : null)} 
+                  placeholder="e.g. 78.4867" 
+                />
+              </label>
+            </div>
+          </div>
           <label>
             Problem details
             <textarea value={form.text} onChange={(e) => update("text", e.target.value)} rows={6} placeholder="Explain what happened, how long it has been pending and who is affected." required />
@@ -93,8 +205,12 @@ export default function RaiseComplaint({ user }) {
               <input value={form.photo_url} onChange={(e) => update("photo_url", e.target.value)} placeholder="Optional image URL" />
             </label>
           </div>
-          <button className="primary-action" disabled={loading}>
-            {loading ? "Submitting..." : "Submit Complaint"}
+          <button 
+            className="primary-action" 
+            disabled={loading || (duplicates.length > 0 && !userAcknowledgedDuplicates)}
+            style={duplicates.length > 0 && !userAcknowledgedDuplicates ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+          >
+            {loading ? "Submitting..." : duplicates.length > 0 && !userAcknowledgedDuplicates ? "⚠️ Please acknowledge duplicates first" : "Submit Complaint"}
           </button>
         </form>
         <aside className="issue-side">
