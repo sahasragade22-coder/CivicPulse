@@ -1,12 +1,8 @@
 // Dynamically set backend URL based on where frontend is accessed from
-const getBackendUrl = () => {
-  const host = window.location.hostname;
-  const protocol = window.location.protocol;
-  return `${protocol}//${host}:5000`;
-};
-
-const BASE_URL = import.meta.env.VITE_API_URL || getBackendUrl();
- 
+const BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://civicpulse-z41f.onrender.com";
+  
 async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json" },

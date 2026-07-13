@@ -2,13 +2,9 @@ import { useEffect, useState, useRef } from 'react';
 import io from 'socket.io-client';
 
 // Dynamically set backend URL based on where frontend is accessed from
-const getBackendUrl = () => {
-  const host = window.location.hostname;
-  const protocol = window.location.protocol;
-  return `${protocol}//${host}:5000`;
-};
-
-const SOCKET_URL = import.meta.env.VITE_API_URL || getBackendUrl();
+const SOCKET_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://civicpulse-z41f.onrender.com";
 
 export function useSocket(userId, userRole) {
   const [socket, setSocket] = useState(null);
